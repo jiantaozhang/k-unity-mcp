@@ -9,14 +9,15 @@ ENV PYTHONUNBUFFERED=1 \
 ENV UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=0
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-RUN pip install uv
+RUN pip install -i https://mirrors.aliyun.com/pypi/simple/ uv
 
 COPY . /app
 

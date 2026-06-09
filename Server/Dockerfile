@@ -1,6 +1,6 @@
 FROM python:3.13-slim
 
-ARG APT_MIRROR=deb.debian.org
+ARG APT_BASE_URL=https://deb.debian.org
 ARG PIP_INDEX_URL=https://pypi.org/simple
 
 # Keep Python output unbuffered and disable pip's cache to shrink layers
@@ -12,7 +12,7 @@ ENV PYTHONUNBUFFERED=1 \
 ENV UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=0
 
-RUN sed -i "s|deb.debian.org|${APT_MIRROR}|g" /etc/apt/sources.list.d/debian.sources \
+RUN sed -i "s|http://deb.debian.org|${APT_BASE_URL}|g" /etc/apt/sources.list.d/debian.sources \
     && apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \

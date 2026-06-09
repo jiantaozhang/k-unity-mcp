@@ -611,19 +611,28 @@ def create_mcp_server(project_scoped_tools: bool) -> FastMCP:
     mcp.add_middleware(unity_middleware)
     logger.info("Registered Unity instance middleware for session-based routing")
 
-    # Initialize API key authentication if in remote-hosted mode
-    if config.http_remote_hosted and config.api_key_validation_url:
+    # Initialize API key authentication if in remote-hosted mode.
+    # Simple mode keeps the existing user_id-based isolation but derives
+    # the identity directly from the supplied X-API-Key value.
+    if config.http_remote_hosted and (config.simple_api_key_auth or config.api_key_validation_url):
         ApiKeyService(
             validation_url=config.api_key_validation_url,
             cache_ttl=config.api_key_cache_ttl,
             service_token_header=config.api_key_service_token_header,
             service_token=config.api_key_service_token,
+            simple_mode=config.simple_api_key_auth,
         )
-        logger.info(
-            "Initialized API key authentication service (validation URL: %s, TTL: %.0fs)",
-            config.api_key_validation_url,
-            config.api_key_cache_ttl,
-        )
+        if config.simple_api_key_auth:
+            logger.info(
+                "Initialized simple API key auth service (X-API-Key -> user_id, TTL: %.0fs)",
+                config.api_key_cache_ttl,
+            )
+        else:
+            logger.info(
+                "Initialized API key authentication service (validation URL: %s, TTL: %.0fs)",
+                config.api_key_validation_url,
+                config.api_key_cache_ttl,
+            )
 
     # Mount plugin websocket hub at /hub/plugin when HTTP transport is active.
     # NOTE: Uses FastMCP private API because custom_route() only supports HTTP
@@ -721,12 +730,18 @@ Examples:
              "Can also set via UNITY_MCP_HTTP_REMOTE_HOSTED=true."
     )
     parser.add_argument(
+        "--simple-api-key-auth",
+        action="store_true",
+        help="Use the provided X-API-Key value directly as user_id in remote-hosted HTTP mode. "
+             "Can also set via UNITY_MCP_SIMPLE_API_KEY_AUTH=true."
+    )
+    parser.add_argument(
         "--api-key-validation-url",
         type=str,
         default=None,
         metavar="URL",
         help="External URL to validate API keys (POST with {'api_key': '...'}). "
-             "Required when --http-remote-hosted is set. "
+             "Required in remote-hosted mode unless --simple-api-key-auth is enabled. "
              "Can also set via UNITY_MCP_API_KEY_VALIDATION_URL."
     )
     parser.add_argument(
@@ -802,6 +817,10 @@ Examples:
         bool(args.http_remote_hosted)
         or os.environ.get("UNITY_MCP_HTTP_REMOTE_HOSTED", "").lower() in ("true", "1", "yes", "on")
     )
+    config.simple_api_key_auth = (
+        bool(args.simple_api_key_auth)
+        or os.environ.get("UNITY_MCP_SIMPLE_API_KEY_AUTH", "").lower() in ("true", "1", "yes", "on")
+    )
 
     # API key authentication configuration
     config.api_key_validation_url = (
@@ -833,11 +852,17 @@ Examples:
         or os.environ.get("UNITY_MCP_API_KEY_SERVICE_TOKEN")
     )
 
-    # Validate: remote-hosted HTTP mode requires API key validation URL
-    if config.http_remote_hosted and config.transport_mode == "http" and not config.api_key_validation_url:
+    # Validate: remote-hosted HTTP mode requires either external validation
+    # or the built-in simple key -> user_id mapping mode.
+    if (
+        config.http_remote_hosted
+        and config.transport_mode == "http"
+        and not config.simple_api_key_auth
+        and not config.api_key_validation_url
+    ):
         logger.error(
-            "--http-remote-hosted requires --api-key-validation-url or "
-            "UNITY_MCP_API_KEY_VALIDATION_URL environment variable"
+            "--http-remote-hosted requires either --simple-api-key-auth or "
+            "--api-key-validation-url / UNITY_MCP_API_KEY_VALIDATION_URL"
         )
         raise SystemExit(1)
 

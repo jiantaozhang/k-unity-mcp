@@ -23,12 +23,14 @@ def _make_service(
     cache_ttl=300.0,
     service_token_header=None,
     service_token=None,
+    simple_mode=False,
 ):
     return ApiKeyService(
         validation_url=validation_url,
         cache_ttl=cache_ttl,
         service_token_header=service_token_header,
         service_token=service_token,
+        simple_mode=simple_mode,
     )
 
 
@@ -67,6 +69,27 @@ class TestSingletonLifecycle:
 
 
 class TestBasicValidation:
+    @pytest.mark.asyncio
+    async def test_simple_mode_maps_api_key_to_user_id(self):
+        svc = _make_service(validation_url=None, simple_mode=True)
+
+        with patch("httpx.AsyncClient") as MockClient:
+            result = await svc.validate("alice")
+
+        assert result.valid is True
+        assert result.user_id == "alice"
+        assert result.metadata == {"auth_mode": "simple"}
+        MockClient.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_simple_mode_trims_api_key_for_user_id(self):
+        svc = _make_service(validation_url=None, simple_mode=True)
+
+        result = await svc.validate("  bob  ")
+
+        assert result.valid is True
+        assert result.user_id == "bob"
+
     @pytest.mark.asyncio
     async def test_valid_key(self):
         svc = _make_service()

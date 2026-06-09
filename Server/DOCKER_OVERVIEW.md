@@ -65,7 +65,18 @@ docker run -p 8080:8080 -e LOG_LEVEL=DEBUG msanatan/mcp-for-unity-server:latest
 
 ## Remote-Hosted Mode
 
-To deploy as a shared remote service with API key authentication and per-user session isolation, pass `--http-remote-hosted` along with an API key validation URL:
+To deploy as a shared remote service with API key authentication and per-user session isolation, enable `--http-remote-hosted` and choose either simple mode or external validation.
+
+**Simple per-user isolation:**
+
+```bash
+docker run -p 8080:8080 \
+  -e UNITY_MCP_HTTP_REMOTE_HOSTED=true \
+  -e UNITY_MCP_SIMPLE_API_KEY_AUTH=true \
+  msanatan/mcp-for-unity-server:latest
+```
+
+**External validation service:**
 
 ```bash
 docker run -p 8080:8080 \
@@ -86,7 +97,8 @@ In this mode:
 | Variable | Description |
 |----------|-------------|
 | `UNITY_MCP_HTTP_REMOTE_HOSTED` | Enable remote-hosted mode (`true`, `1`, or `yes`) |
-| `UNITY_MCP_API_KEY_VALIDATION_URL` | External endpoint to validate API keys (required) |
+| `UNITY_MCP_SIMPLE_API_KEY_AUTH` | Use the provided `X-API-Key` value directly as `user_id` |
+| `UNITY_MCP_API_KEY_VALIDATION_URL` | External endpoint to validate API keys (required unless simple auth is enabled) |
 | `UNITY_MCP_API_KEY_LOGIN_URL` | URL where users can obtain/manage API keys |
 | `UNITY_MCP_API_KEY_CACHE_TTL` | Cache TTL for validated keys in seconds (default: `300`) |
 | `UNITY_MCP_API_KEY_SERVICE_TOKEN_HEADER` | Header name for server-to-auth-service authentication |

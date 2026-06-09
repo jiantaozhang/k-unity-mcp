@@ -15,6 +15,7 @@ from starlette.responses import JSONResponse
 def _restore_config(monkeypatch):
     """Prevent main() side effects on the global config from leaking to other tests."""
     monkeypatch.setattr(config, "http_remote_hosted", config.http_remote_hosted)
+    monkeypatch.setattr(config, "simple_api_key_auth", config.simple_api_key_auth)
     monkeypatch.setattr(config, "api_key_validation_url", config.api_key_validation_url)
     monkeypatch.setattr(config, "api_key_login_url", config.api_key_login_url)
     monkeypatch.setattr(config, "api_key_cache_ttl", config.api_key_cache_ttl)
@@ -24,7 +25,7 @@ def _restore_config(monkeypatch):
 
 class TestStartupConfigValidation:
     def test_remote_hosted_flag_without_validation_url_exits(self, monkeypatch):
-        """--http-remote-hosted without --api-key-validation-url should SystemExit(1)."""
+        """--http-remote-hosted without any auth mode should SystemExit(1)."""
         monkeypatch.setattr(
             sys,
             "argv",
@@ -45,8 +46,35 @@ class TestStartupConfigValidation:
 
         assert exc_info.value.code == 1
 
+    def test_remote_hosted_simple_auth_does_not_require_validation_url(self, monkeypatch):
+        """Simple API key auth should satisfy remote-hosted startup validation."""
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "main",
+                "--transport", "http",
+                "--http-remote-hosted",
+                "--simple-api-key-auth",
+            ],
+        )
+        monkeypatch.delenv("UNITY_MCP_API_KEY_VALIDATION_URL", raising=False)
+        monkeypatch.delenv("UNITY_MCP_HTTP_REMOTE_HOSTED", raising=False)
+        monkeypatch.delenv("UNITY_MCP_SIMPLE_API_KEY_AUTH", raising=False)
+
+        from main import main
+        import main as main_mod
+
+        class _DummyServer:
+            def run(self, *args, **kwargs):
+                return None
+
+        monkeypatch.setattr(main_mod, "create_mcp_server", lambda _project_scoped_tools: _DummyServer())
+
+        main()
+
     def test_remote_hosted_env_var_without_validation_url_exits(self, monkeypatch):
-        """UNITY_MCP_HTTP_REMOTE_HOSTED=true without validation URL should SystemExit(1)."""
+        """UNITY_MCP_HTTP_REMOTE_HOSTED=true without any auth mode should SystemExit(1)."""
         monkeypatch.setattr(
             sys,
             "argv",

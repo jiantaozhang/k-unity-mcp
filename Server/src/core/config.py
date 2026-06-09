@@ -22,6 +22,7 @@ class ServerConfig:
     http_remote_hosted: bool = False
 
     # API key authentication (required when http_remote_hosted=True)
+    simple_api_key_auth: bool = False  # Use X-API-Key value directly as user_id
     api_key_validation_url: str | None = None  # POST endpoint to validate keys
     api_key_login_url: str | None = None       # URL for users to get/manage keys
     # Cache TTL in seconds (5 min default)

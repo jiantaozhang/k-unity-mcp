@@ -65,6 +65,22 @@ def _init_api_key_service(validate_result=None):
 
 class TestWebSocketAuthGate:
     @pytest.mark.asyncio
+    async def test_simple_mode_api_key_accepted_as_user_id(self, monkeypatch):
+        """Simple auth mode should treat the API key itself as the user identity."""
+        monkeypatch.setattr(config, "http_remote_hosted", True)
+        ApiKeyService(validation_url=None, simple_mode=True)
+
+        ws = _make_mock_websocket(headers={API_KEY_HEADER: "alice"})
+        hub = _make_hub()
+
+        await hub.on_connect(ws)
+
+        ws.accept.assert_called_once()
+        ws.close.assert_not_called()
+        assert ws.state.user_id == "alice"
+        assert ws.state.api_key_metadata == {"auth_mode": "simple"}
+
+    @pytest.mark.asyncio
     async def test_no_api_key_remote_hosted_rejected(self, monkeypatch):
         """WebSocket without API key in remote-hosted mode -> close 4401."""
         monkeypatch.setattr(config, "http_remote_hosted", True)

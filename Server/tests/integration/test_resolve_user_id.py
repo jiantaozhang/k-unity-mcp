@@ -19,6 +19,23 @@ def _reset_api_key_singleton():
 
 class TestResolveUserIdFromRequest:
     @pytest.mark.asyncio
+    async def test_returns_api_key_as_user_id_in_simple_mode(self, monkeypatch):
+        monkeypatch.setattr(config, "http_remote_hosted", True)
+
+        ApiKeyService(validation_url=None, simple_mode=True)
+
+        deps_mod = types.ModuleType("fastmcp.server.dependencies")
+        deps_mod.get_http_headers = lambda include_all=False: {
+            "x-api-key": "charlie"}
+        monkeypatch.setitem(
+            sys.modules, "fastmcp.server.dependencies", deps_mod)
+
+        from transport.unity_transport import _resolve_user_id_from_request
+
+        result = await _resolve_user_id_from_request()
+        assert result == "charlie"
+
+    @pytest.mark.asyncio
     async def test_returns_none_when_not_remote_hosted(self, monkeypatch):
         monkeypatch.setattr(config, "http_remote_hosted", False)
 

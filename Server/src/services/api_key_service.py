@@ -37,10 +37,11 @@ class ApiKeyService:
 
     def __init__(
         self,
-        validation_url: str,
+        validation_url: str | None,
         cache_ttl: float = 300.0,
         service_token_header: str | None = None,
         service_token: str | None = None,
+        simple_mode: bool = False,
     ):
         """Initialize the API key service.
 
@@ -49,11 +50,13 @@ class ApiKeyService:
             cache_ttl: Cache TTL for validated keys in seconds (default: 300)
             service_token_header: Optional header name for service authentication (e.g. "X-Service-Token")
             service_token: Optional token value for service authentication
+            simple_mode: If True, treat the provided API key itself as the user identity
         """
         self._validation_url = validation_url
         self._cache_ttl = cache_ttl
         self._service_token_header = service_token_header
         self._service_token = service_token
+        self._simple_mode = simple_mode
         # Cache: api_key -> (valid, user_id, metadata, expires_at)
         self._cache: dict[str, tuple[bool, str |
                                      None, dict[str, Any] | None, float]] = {}
@@ -83,12 +86,13 @@ class ApiKeyService:
             ValidationResult with valid=True and user_id if valid,
             or valid=False with error message if invalid.
         """
-        if not api_key:
+        normalized_key = api_key.strip() if isinstance(api_key, str) else ""
+        if not normalized_key:
             return ValidationResult(valid=False, error="API key required")
 
         # Check cache first
         async with self._cache_lock:
-            cached = self._cache.get(api_key)
+            cached = self._cache.get(normalized_key)
             if cached is not None:
                 valid, user_id, metadata, expires_at = cached
                 if time.time() < expires_at:
@@ -101,7 +105,14 @@ class ApiKeyService:
                     del self._cache[api_key]
 
         # Call external validation URL
-        result = await self._validate_external(api_key)
+        if self._simple_mode:
+            result = ValidationResult(
+                valid=True,
+                user_id=normalized_key,
+                metadata={"auth_mode": "simple"},
+            )
+        else:
+            result = await self._validate_external(normalized_key)
 
         # Only cache definitive results (valid keys and confirmed-invalid keys).
         # Transient failures (auth service unavailable, timeouts, etc.) should
@@ -109,7 +120,7 @@ class ApiKeyService:
         if result.cacheable:
             async with self._cache_lock:
                 expires_at = time.time() + self._cache_ttl
-                self._cache[api_key] = (
+                self._cache[normalized_key] = (
                     result.valid,
                     result.user_id,
                     result.metadata,
@@ -123,6 +134,12 @@ class ApiKeyService:
 
         Failure mode: fail closed (treat as invalid on errors).
         """
+        if not self._validation_url:
+            return ValidationResult(
+                valid=False,
+                error="Auth service not configured",
+            )
+
         # Redact API key from logs
         redacted_key = f"{api_key[:4]}...{api_key[-4:]}" if len(
             api_key) > 8 else "***"

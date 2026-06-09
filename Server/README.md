@@ -128,7 +128,8 @@ These options apply to the `mcp-for-unity` command (whether run via `uvx`, Docke
   - Disables local/CLI-only HTTP routes (`/api/command`, `/api/instances`, `/api/custom-tools`)
   - Forces explicit Unity instance selection for MCP tool/resource calls
   - Isolates Unity sessions per user
-- `--api-key-validation-url URL` - External endpoint to validate API keys (required when `--http-remote-hosted` is set)
+- `--simple-api-key-auth` - Use the provided `X-API-Key` value directly as `user_id` in remote-hosted mode
+- `--api-key-validation-url URL` - External endpoint to validate API keys (required in remote-hosted mode unless `--simple-api-key-auth` is enabled)
 - `--api-key-login-url URL` - URL where users can obtain/manage API keys (served by `/api/auth/login-url`)
 - `--api-key-cache-ttl SECONDS` - Cache duration for validated keys (default: `300`)
 - `--api-key-service-token-header HEADER` - Header name for server-to-auth-service authentication (e.g. `X-Service-Token`)
@@ -150,6 +151,7 @@ These options apply to the `mcp-for-unity` command (whether run via `uvx`, Docke
 
 API key authentication (remote-hosted mode):
 
+- `UNITY_MCP_SIMPLE_API_KEY_AUTH` - Use the provided `X-API-Key` value directly as `user_id`
 - `UNITY_MCP_API_KEY_VALIDATION_URL` - External endpoint to validate API keys
 - `UNITY_MCP_API_KEY_LOGIN_URL` - URL where users can obtain/manage API keys
 - `UNITY_MCP_API_KEY_CACHE_TTL` - Cache TTL for validated keys in seconds (default: `300`)
@@ -190,6 +192,17 @@ uvx --from mcpforunityserver mcp-for-unity \
   --api-key-login-url https://app.example.com/api-keys
 ```
 
+**HTTP (remote-hosted with simple per-user isolation):**
+
+```bash
+uvx --from mcpforunityserver mcp-for-unity \
+  --transport http \
+  --http-host 0.0.0.0 \
+  --http-port 8080 \
+  --http-remote-hosted \
+  --simple-api-key-auth
+```
+
 **Disable telemetry:**
 
 ```bash
@@ -202,10 +215,11 @@ DISABLE_TELEMETRY=1 uvx --from mcpforunityserver mcp-for-unity --transport stdio
 
 When deploying the server as a shared remote service (e.g. for a team or Asset Store users), enable `--http-remote-hosted` to activate API key authentication and per-user session isolation.
 
-**Requirements:**
+**Authentication options:**
 
-- An external HTTP endpoint that validates API keys. The server POSTs `{"api_key": "..."}` and expects `{"valid": true, "user_id": "..."}` or `{"valid": false}` in response.
-- `--api-key-validation-url` must be provided (or `UNITY_MCP_API_KEY_VALIDATION_URL`). The server exits with code 1 if this is missing.
+- Simple mode: enable `--simple-api-key-auth` (or `UNITY_MCP_SIMPLE_API_KEY_AUTH=true`) to treat the provided `X-API-Key` value directly as `user_id`.
+- External validation mode: provide `--api-key-validation-url` (or `UNITY_MCP_API_KEY_VALIDATION_URL`). The server POSTs `{"api_key": "..."}` and expects `{"valid": true, "user_id": "..."}` or `{"valid": false}` in response.
+- The server exits with code 1 if remote-hosted mode is enabled without either authentication option.
 
 **What changes in remote-hosted mode:**
 
